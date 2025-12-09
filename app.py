@@ -40,6 +40,60 @@ app = Flask(__name__)
 configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 
+# 觸發關鍵字（訊息開頭需包含這些詞才會回應）
+TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
+
+# 註冊相關指令
+REGISTER_COMMANDS = ["註冊", "register"]
+
+
+def get_jaba_headers() -> dict:
+    """取得呼叫 jaba API 的 headers"""
+    headers = {"Content-Type": "application/json"}
+    if jaba_api_key:
+        headers["X-API-Key"] = jaba_api_key
+    return headers
+
+
+def check_whitelist(id_value: str) -> dict:
+    """檢查是否在白名單中"""
+    if not jaba_api_url:
+        return {"registered": True}  # 無 jaba 時不檢查
+
+    try:
+        response = requests.get(
+            f"{jaba_api_url}/api/linebot/check/{id_value}",
+            headers=get_jaba_headers(),
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        print(f"檢查白名單錯誤: {e}")
+
+    return {"registered": False}
+
+
+def register_to_whitelist(id_type: str, id_value: str, name: str = "") -> dict:
+    """註冊到白名單"""
+    if not jaba_api_url:
+        return {"success": False, "message": "系統未設定"}
+
+    try:
+        response = requests.post(
+            f"{jaba_api_url}/api/linebot/register",
+            json={"type": id_type, "id": id_value, "name": name},
+            headers=get_jaba_headers(),
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"success": False, "message": f"註冊失敗 ({response.status_code})"}
+    except Exception as e:
+        print(f"註冊錯誤: {e}")
+        return {"success": False, "message": "系統連線錯誤"}
+
 
 def call_jaba_api(username: str, message: str) -> str:
     """呼叫 jaba API 取得回應"""
@@ -47,10 +101,6 @@ def call_jaba_api(username: str, message: str) -> str:
         return message  # Echo 模式
 
     try:
-        headers = {"Content-Type": "application/json"}
-        if jaba_api_key:
-            headers["X-API-Key"] = jaba_api_key
-
         response = requests.post(
             f"{jaba_api_url}/api/chat",
             json={
@@ -58,7 +108,7 @@ def call_jaba_api(username: str, message: str) -> str:
                 "message": message,
                 "is_manager": False
             },
-            headers=headers,
+            headers=get_jaba_headers(),
             timeout=25  # 增加 timeout 以應對 AI 處理時間
         )
 
@@ -103,6 +153,20 @@ def get_user_display_name(event) -> str:
         return user_id  # 無法取得時回傳 user_id
 
 
+def get_source_id(event) -> tuple[str, str]:
+    """取得來源 ID 和類型
+
+    Returns:
+        (id_value, id_type) - ID 值和類型 ("user" 或 "group")
+    """
+    if event.source.type == "group":
+        return event.source.group_id, "group"
+    elif event.source.type == "room":
+        return event.source.room_id, "group"  # room 也當作 group 處理
+    else:
+        return event.source.user_id, "user"
+
+
 @app.route("/callback", methods=["POST"])
 def callback():
     """LINE Webhook endpoint - 接收 LINE Platform 的訊息"""
@@ -115,13 +179,6 @@ def callback():
         abort(400)
 
     return "OK"
-
-
-# 觸發關鍵字（訊息開頭需包含這些詞才會回應）
-TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
-
-# 管理指令（用於取得 ID 等）
-ADMIN_COMMANDS = ["id", "群組id", "群組ID", "userid", "groupid"]
 
 
 def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
@@ -140,12 +197,10 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
     # 檢查 @mention（LINE 的 mention 會在 message.mention 中）
     if hasattr(event.message, 'mention') and event.message.mention:
         # 有 @mention，移除 mention 文字後回應
-        # mention 的文字格式通常是 @BotName
         cleaned = user_text
         for mentionee in event.message.mention.mentionees:
             # 移除 @mention 部分
             if mentionee.type == "user":
-                # 取得 mention 的文字範圍並移除
                 start = mentionee.index
                 length = mentionee.length
                 cleaned = cleaned[:start] + cleaned[start + length:]
@@ -156,22 +211,41 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
         if text_lower.startswith(keyword.lower()):
             # 移除關鍵字，保留後面的內容
             cleaned = user_text[len(keyword):].strip()
-            # 如果移除關鍵字後還有內容，就用清理後的；否則用原文
             return True, cleaned if cleaned else user_text
 
     # 不符合觸發條件
     return False, user_text
 
 
-def handle_admin_command(event: MessageEvent, command: str) -> str | None:
-    """處理管理指令，回傳回應訊息或 None（非管理指令）"""
+def handle_special_command(event: MessageEvent, command: str) -> str | None:
+    """處理特殊指令（註冊、ID查詢等），回傳回應訊息或 None"""
     cmd_lower = command.lower().strip()
+    user_id = event.source.user_id
+    source_type = event.source.type
 
-    # 檢查是否為 ID 查詢指令
+    # === 註冊指令 ===
+    if cmd_lower in REGISTER_COMMANDS:
+        source_id, id_type = get_source_id(event)
+        name = get_user_display_name(event) if id_type == "user" else ""
+
+        result = register_to_whitelist(id_type, source_id, name)
+
+        if result.get("success"):
+            if result.get("already_registered"):
+                if id_type == "group":
+                    return "✅ 此群組已經註冊過了，可以直接使用點餐功能！"
+                else:
+                    return "✅ 你已經註冊過了，可以直接使用點餐功能！"
+            else:
+                if id_type == "group":
+                    return "🎉 群組註冊成功！\n\n現在群組成員可以使用點餐功能了。\n\n試試說「呷爸 今天吃什麼」"
+                else:
+                    return "🎉 註冊成功！\n\n現在你可以使用點餐功能了。\n\n試試說「今天吃什麼」"
+        else:
+            return f"❌ 註冊失敗：{result.get('message', '未知錯誤')}"
+
+    # === ID 查詢指令 ===
     if cmd_lower in ["id", "群組id", "groupid", "userid"]:
-        user_id = event.source.user_id
-        source_type = event.source.type
-
         if source_type == "group":
             group_id = event.source.group_id
             return f"📋 ID 資訊\n\n群組 ID:\n{group_id}\n\n你的用戶 ID:\n{user_id}"
@@ -182,6 +256,18 @@ def handle_admin_command(event: MessageEvent, command: str) -> str | None:
             return f"📋 ID 資訊\n\n你的用戶 ID:\n{user_id}"
 
     return None
+
+
+def reply_message(event: MessageEvent, text: str):
+    """回覆訊息"""
+    with ApiClient(configuration) as api_client:
+        messaging_api = MessagingApi(api_client)
+        messaging_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=text)]
+            )
+        )
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
@@ -198,17 +284,22 @@ def handle_text_message(event: MessageEvent):
     if not should_reply:
         return
 
-    # 檢查是否為管理指令
-    admin_response = handle_admin_command(event, cleaned_message)
-    if admin_response:
-        with ApiClient(configuration) as api_client:
-            messaging_api = MessagingApi(api_client)
-            messaging_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=admin_response)]
-                )
-            )
+    # 檢查是否為特殊指令（註冊、ID 查詢）- 這些不需要白名單
+    special_response = handle_special_command(event, cleaned_message)
+    if special_response:
+        reply_message(event, special_response)
+        return
+
+    # 檢查白名單
+    source_id, _ = get_source_id(event)
+    whitelist_check = check_whitelist(source_id)
+
+    if not whitelist_check.get("registered"):
+        # 未註冊，提示註冊
+        if event.source.type == "group":
+            reply_message(event, "⚠️ 此群組尚未註冊，請先說「呷爸 註冊」來啟用點餐功能。")
+        else:
+            reply_message(event, "⚠️ 你尚未註冊，請先說「註冊」來啟用點餐功能。")
         return
 
     # 取得使用者名稱（支援群組）
@@ -218,14 +309,7 @@ def handle_text_message(event: MessageEvent):
     reply_text = call_jaba_api(username, cleaned_message)
 
     # 回覆訊息
-    with ApiClient(configuration) as api_client:
-        messaging_api = MessagingApi(api_client)
-        messaging_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            )
-        )
+    reply_message(event, reply_text)
 
 
 @app.route("/", methods=["GET"])
