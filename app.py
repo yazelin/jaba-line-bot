@@ -42,7 +42,7 @@ configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 
 # 觸發關鍵字（訊息開頭需包含這些詞才會回應）
-TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
+TRIGGER_KEYWORDS = ["jaba 呷爸", "呷爸", "點餐", "jaba"]
 
 # 啟用密碼（必須透過環境變數設定）
 REGISTER_SECRET = os.environ.get("REGISTER_SECRET")
@@ -183,7 +183,7 @@ def call_jaba_api(username: str, message: str, group_id: str | None = None) -> s
             f"{jaba_api_url}/api/chat",
             json=payload,
             headers=get_jaba_headers(),
-            timeout=25  # 增加 timeout 以應對 AI 處理時間
+            timeout=45  # LINE Reply Token 有效期約 30 秒，設 45 秒留餘裕
         )
 
         if response.status_code == 200:
@@ -324,7 +324,7 @@ def generate_help_message(event: MessageEvent) -> str:
                 lines.append("【可用指令】")
                 lines.append("• 直接說出餐點即可點餐")
                 lines.append("• 「+1」或「我也要」跟單")
-                lines.append("• 「收單」結束點餐")
+                lines.append("• 「收單」或「結單」結束點餐")
                 lines.append("• 「菜單」查看今日菜單")
                 lines.append("• 「目前訂單」查看訂單狀況")
             else:
@@ -395,7 +395,7 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
                     return "✅ 已啟用，可以直接使用點餐功能！"
             else:
                 if id_type == "group":
-                    return "🎉 群組啟用成功！\n\n說「開單」開始群組點餐\n說「收單」結束並顯示訂單摘要\n說「菜單」查看今日菜單"
+                    return "🎉 群組啟用成功！\n\n說「開單」開始群組點餐\n說「收單」或「結單」結束並顯示訂單摘要\n說「菜單」查看今日菜單"
                 else:
                     return "🎉 啟用成功！\n\n現在你可以使用點餐功能了。\n\n試試說「今天吃什麼」"
         else:
