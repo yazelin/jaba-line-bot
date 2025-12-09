@@ -75,6 +75,26 @@ def check_whitelist(id_value: str) -> dict:
     return {"registered": False}
 
 
+def check_group_session(group_id: str) -> bool:
+    """檢查群組是否在點餐中"""
+    if not jaba_api_url:
+        return False
+
+    try:
+        response = requests.get(
+            f"{jaba_api_url}/api/linebot/session/{group_id}",
+            headers=get_jaba_headers(),
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("ordering", False)
+    except Exception as e:
+        print(f"檢查群組 session 錯誤: {e}")
+
+    return False
+
+
 def register_to_whitelist(
     id_type: str,
     id_value: str,
@@ -139,19 +159,29 @@ def unregister_from_whitelist(id_value: str) -> None:
         print(f"移除白名單錯誤: {e}")
 
 
-def call_jaba_api(username: str, message: str) -> str:
-    """呼叫 jaba API 取得回應"""
+def call_jaba_api(username: str, message: str, group_id: str | None = None) -> str:
+    """呼叫 jaba API 取得回應
+
+    Args:
+        username: 使用者名稱
+        message: 訊息內容
+        group_id: 群組 ID（群組點餐時傳入）
+    """
     if not jaba_api_url:
         return message  # Echo 模式
 
     try:
+        payload = {
+            "username": username,
+            "message": message,
+            "is_manager": False
+        }
+        if group_id:
+            payload["group_id"] = group_id
+
         response = requests.post(
             f"{jaba_api_url}/api/chat",
-            json={
-                "username": username,
-                "message": message,
-                "is_manager": False
-            },
+            json=payload,
             headers=get_jaba_headers(),
             timeout=25  # 增加 timeout 以應對 AI 處理時間
         )
@@ -235,29 +265,30 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
     if event.source.type == "user":
         return True, user_text
 
-    # 群組/聊天室：檢查觸發條件
-    text_lower = user_text.lower().strip()
+    # 群組/聊天室：使用 Session 機制
+    text_stripped = user_text.strip()
 
-    # 檢查 @mention（LINE 的 mention 會在 message.mention 中）
-    if hasattr(event.message, 'mention') and event.message.mention:
-        # 有 @mention，移除 mention 文字後回應
-        cleaned = user_text
-        for mentionee in event.message.mention.mentionees:
-            # 移除 @mention 部分
-            if mentionee.type == "user":
-                start = mentionee.index
-                length = mentionee.length
-                cleaned = cleaned[:start] + cleaned[start + length:]
-        return True, cleaned.strip()
+    # 取得群組 ID
+    if event.source.type == "group":
+        group_id = event.source.group_id
+    elif event.source.type == "room":
+        group_id = event.source.room_id
+    else:
+        return False, user_text
 
-    # 檢查是否包含關鍵字
-    for keyword in TRIGGER_KEYWORDS:
-        keyword_lower = keyword.lower()
-        if keyword_lower in text_lower:
-            return True, user_text  # 保留完整訊息（包含關鍵字）
+    # 檢查群組是否在點餐中
+    is_ordering = check_group_session(group_id)
 
-    # 不符合觸發條件
-    return False, user_text
+    if is_ordering:
+        # 點餐中：所有訊息都轉發給 jaba
+        return True, user_text
+    else:
+        # 非點餐中：只回應「開始點餐」這 4 個字
+        if text_stripped == "開始點餐":
+            return True, user_text
+
+        # 其他訊息完全忽略（包括關鍵字、@mention 等）
+        return False, user_text
 
 
 def handle_special_command(event: MessageEvent, command: str) -> str | None:
@@ -339,7 +370,7 @@ def handle_text_message(event: MessageEvent):
     if not user_text or not user_text.strip():
         return
 
-    # 檢查是否應該回應（群組中需要 @mention 或關鍵字觸發）
+    # 檢查是否應該回應（群組使用 Session 機制）
     should_reply, cleaned_message = should_respond(event, user_text)
     if not should_reply:
         return
@@ -351,7 +382,7 @@ def handle_text_message(event: MessageEvent):
         return
 
     # 檢查白名單
-    source_id, _ = get_source_id(event)
+    source_id, source_type = get_source_id(event)
     whitelist_check = check_whitelist(source_id)
 
     if not whitelist_check.get("registered"):
@@ -365,11 +396,17 @@ def handle_text_message(event: MessageEvent):
     # 取得使用者名稱（支援群組）
     username = get_user_display_name(event)
 
-    # 呼叫 jaba API 取得回應
-    reply_text = call_jaba_api(username, cleaned_message)
+    # 取得群組 ID（群組/聊天室時傳入）
+    group_id = None
+    if source_type == "group":
+        group_id = source_id
 
-    # 回覆訊息
-    reply_message(event, reply_text)
+    # 呼叫 jaba API 取得回應
+    reply_text = call_jaba_api(username, cleaned_message, group_id)
+
+    # 回覆訊息（空訊息不回覆，用於群組點餐時過濾非訂餐訊息）
+    if reply_text and reply_text.strip():
+        reply_message(event, reply_text)
 
 
 @handler.add(LeaveEvent)
