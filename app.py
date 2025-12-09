@@ -211,9 +211,7 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
     for keyword in TRIGGER_KEYWORDS:
         keyword_lower = keyword.lower()
         if keyword_lower in text_lower:
-            # 移除關鍵字，保留其他內容
-            cleaned = re.sub(re.escape(keyword), '', user_text, count=1, flags=re.IGNORECASE).strip()
-            return True, cleaned if cleaned else user_text
+            return True, user_text  # 保留完整訊息（包含關鍵字）
 
     # 不符合觸發條件
     return False, user_text
