@@ -1,5 +1,6 @@
 """Jaba LINE Bot - 呷爸 AI 午餐訂便當系統 LINE 介面"""
 import os
+import re
 import sys
 
 import requests
@@ -206,11 +207,12 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
                 cleaned = cleaned[:start] + cleaned[start + length:]
         return True, cleaned.strip()
 
-    # 檢查關鍵字開頭
+    # 檢查是否包含關鍵字
     for keyword in TRIGGER_KEYWORDS:
-        if text_lower.startswith(keyword.lower()):
-            # 移除關鍵字，保留後面的內容
-            cleaned = user_text[len(keyword):].strip()
+        keyword_lower = keyword.lower()
+        if keyword_lower in text_lower:
+            # 移除關鍵字，保留其他內容
+            cleaned = re.sub(re.escape(keyword), '', user_text, count=1, flags=re.IGNORECASE).strip()
             return True, cleaned if cleaned else user_text
 
     # 不符合觸發條件
