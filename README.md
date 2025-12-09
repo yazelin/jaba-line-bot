@@ -114,12 +114,15 @@ jaba-line-bot/
 ├── render.yaml                 # Render 部署設定
 ├── .env.example                # 環境變數範本
 ├── nginx-config-for-server.conf # nginx 設定參考
-└── docs/                       # 詳細文件
-    ├── architecture.md         # 系統架構
-    ├── line-setup.md           # LINE 設定
-    ├── deployment.md           # 部署指南
-    ├── jaba-integration.md     # jaba 整合
-    └── configuration.md        # 環境變數
+├── docs/                       # 詳細文件
+│   ├── architecture.md         # 系統架構
+│   ├── line-setup.md           # LINE 設定
+│   ├── deployment.md           # 部署指南
+│   ├── jaba-integration.md     # jaba 整合
+│   └── configuration.md        # 環境變數
+└── openspec/                   # OpenSpec 規格文件
+    ├── specs/                  # 功能規格
+    └── changes/                # 變更歷史
 ```
 
 ## 授權
