@@ -283,8 +283,12 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
         # 點餐中：所有訊息都轉發給 jaba
         return True, user_text
     else:
-        # 非點餐中：只回應「開始點餐」這 4 個字
+        # 非點餐中：只回應「開始點餐」或啟用密碼
         if text_stripped == "開始點餐":
+            return True, user_text
+
+        # 檢查是否為啟用密碼
+        if REGISTER_SECRET and text_stripped == REGISTER_SECRET:
             return True, user_text
 
         # 其他訊息完全忽略（包括關鍵字、@mention 等）
