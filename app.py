@@ -117,6 +117,49 @@ def callback():
     return "OK"
 
 
+# 觸發關鍵字（訊息開頭需包含這些詞才會回應）
+TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
+
+
+def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
+    """判斷是否應該回應此訊息
+
+    Returns:
+        (should_respond, cleaned_message) - 是否回應、清理後的訊息
+    """
+    # 1對1 聊天：永遠回應
+    if event.source.type == "user":
+        return True, user_text
+
+    # 群組/聊天室：檢查觸發條件
+    text_lower = user_text.lower().strip()
+
+    # 檢查 @mention（LINE 的 mention 會在 message.mention 中）
+    if hasattr(event.message, 'mention') and event.message.mention:
+        # 有 @mention，移除 mention 文字後回應
+        # mention 的文字格式通常是 @BotName
+        cleaned = user_text
+        for mentionee in event.message.mention.mentionees:
+            # 移除 @mention 部分
+            if mentionee.type == "user":
+                # 取得 mention 的文字範圍並移除
+                start = mentionee.index
+                length = mentionee.length
+                cleaned = cleaned[:start] + cleaned[start + length:]
+        return True, cleaned.strip()
+
+    # 檢查關鍵字開頭
+    for keyword in TRIGGER_KEYWORDS:
+        if text_lower.startswith(keyword.lower()):
+            # 移除關鍵字，保留後面的內容
+            cleaned = user_text[len(keyword):].strip()
+            # 如果移除關鍵字後還有內容，就用清理後的；否則用原文
+            return True, cleaned if cleaned else user_text
+
+    # 不符合觸發條件
+    return False, user_text
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event: MessageEvent):
     """處理文字訊息 - 轉發到 jaba 系統"""
@@ -126,11 +169,16 @@ def handle_text_message(event: MessageEvent):
     if not user_text or not user_text.strip():
         return
 
+    # 檢查是否應該回應（群組中需要 @mention 或關鍵字觸發）
+    should_reply, cleaned_message = should_respond(event, user_text)
+    if not should_reply:
+        return
+
     # 取得使用者名稱（支援群組）
     username = get_user_display_name(event)
 
     # 呼叫 jaba API 取得回應
-    reply_text = call_jaba_api(username, user_text)
+    reply_text = call_jaba_api(username, cleaned_message)
 
     # 回覆訊息
     with ApiClient(configuration) as api_client:
