@@ -13,7 +13,7 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
 )
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, LeaveEvent, UnfollowEvent
 from linebot.v3.exceptions import InvalidSignatureError
 
 # 從環境變數載入設定
@@ -94,6 +94,26 @@ def register_to_whitelist(id_type: str, id_value: str, name: str = "") -> dict:
     except Exception as e:
         print(f"註冊錯誤: {e}")
         return {"success": False, "message": "系統連線錯誤"}
+
+
+def unregister_from_whitelist(id_value: str) -> None:
+    """從白名單移除（Bot 被踢出群組或使用者封鎖時呼叫）"""
+    if not jaba_api_url:
+        return
+
+    try:
+        response = requests.delete(
+            f"{jaba_api_url}/api/linebot/unregister",
+            json={"id": id_value},
+            headers=get_jaba_headers(),
+            timeout=5
+        )
+        if response.status_code == 200:
+            print(f"已從白名單移除: {id_value}")
+        else:
+            print(f"移除白名單失敗 ({response.status_code}): {id_value}")
+    except Exception as e:
+        print(f"移除白名單錯誤: {e}")
 
 
 def call_jaba_api(username: str, message: str) -> str:
@@ -311,6 +331,27 @@ def handle_text_message(event: MessageEvent):
 
     # 回覆訊息
     reply_message(event, reply_text)
+
+
+@handler.add(LeaveEvent)
+def handle_leave(event: LeaveEvent):
+    """處理 Bot 被移出群組/聊天室事件 - 從白名單移除"""
+    if event.source.type == "group":
+        group_id = event.source.group_id
+        print(f"Bot 被移出群組: {group_id}")
+        unregister_from_whitelist(group_id)
+    elif event.source.type == "room":
+        room_id = event.source.room_id
+        print(f"Bot 被移出聊天室: {room_id}")
+        unregister_from_whitelist(room_id)
+
+
+@handler.add(UnfollowEvent)
+def handle_unfollow(event: UnfollowEvent):
+    """處理使用者封鎖/取消追蹤事件 - 從白名單移除"""
+    user_id = event.source.user_id
+    print(f"使用者取消追蹤: {user_id}")
+    unregister_from_whitelist(user_id)
 
 
 @app.route("/", methods=["GET"])

@@ -94,6 +94,35 @@ POST /api/linebot/register
 }
 ```
 
+### 4. 白名單移除 API
+
+當 Bot 被踢出群組或使用者封鎖 Bot 時，自動呼叫此 API 移除白名單。
+
+```
+DELETE /api/linebot/unregister
+```
+
+**Request：**
+```json
+{
+    "id": "U1234567890abcdef"
+}
+```
+
+**Response：**
+```json
+{
+    "success": true,
+    "message": "已取消註冊"
+}
+```
+
+**觸發時機：**
+| LINE 事件 | 說明 |
+|-----------|------|
+| `LeaveEvent` | Bot 被踢出群組或聊天室 |
+| `UnfollowEvent` | 使用者封鎖或取消追蹤 Bot |
+
 ## nginx 設定
 
 nginx 作為 API Gateway，負責：
