@@ -182,12 +182,12 @@ def call_jaba_api(
             "message": message,
             "is_manager": False
         }
+        # 無論群組或個人模式，都傳送 line_user_id 以確保 profile 正確儲存
+        if line_user_id:
+            payload["line_user_id"] = line_user_id
+            payload["display_name"] = username
         if group_id:
             payload["group_id"] = group_id
-            # 群組點餐時傳入 LINE User ID 和 display_name
-            if line_user_id:
-                payload["line_user_id"] = line_user_id
-                payload["display_name"] = username
 
         response = requests.post(
             f"{jaba_api_url}/api/chat",
