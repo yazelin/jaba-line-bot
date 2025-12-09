@@ -82,15 +82,40 @@ POST /api/linebot/register
 {
     "type": "user",
     "id": "U1234567890abcdef",
-    "name": "王小明"
+    "name": "王小明",
+    "activated_by": {
+        "user_id": "U1234567890abcdef",
+        "display_name": "王小明"
+    }
 }
 ```
+
+| 欄位 | 說明 |
+|------|------|
+| `type` | `"user"` 或 `"group"` |
+| `id` | LINE user_id 或 group_id |
+| `name` | 顯示名稱（個人啟用時使用） |
+| `activated_by.user_id` | 啟用者的 LINE user_id |
+| `activated_by.display_name` | 啟用者的顯示名稱 |
 
 **Response：**
 ```json
 {
     "success": true,
     "already_registered": false
+}
+```
+
+**儲存的資料結構：**
+```json
+{
+    "id": "C9876543210",
+    "name": "",
+    "registered_at": "2024-01-15T10:30:00",
+    "activated_by": {
+        "user_id": "U1234567890abcdef",
+        "display_name": "王小明"
+    }
 }
 ```
 

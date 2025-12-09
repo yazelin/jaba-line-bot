@@ -75,15 +75,38 @@ def check_whitelist(id_value: str) -> dict:
     return {"registered": False}
 
 
-def register_to_whitelist(id_type: str, id_value: str, name: str = "") -> dict:
-    """註冊到白名單"""
+def register_to_whitelist(
+    id_type: str,
+    id_value: str,
+    name: str = "",
+    activated_by_id: str = "",
+    activated_by_name: str = ""
+) -> dict:
+    """註冊到白名單
+
+    Args:
+        id_type: "user" 或 "group"
+        id_value: LINE user_id 或 group_id
+        name: 顯示名稱（個人啟用時使用）
+        activated_by_id: 啟用者的 LINE user_id
+        activated_by_name: 啟用者的顯示名稱
+    """
     if not jaba_api_url:
         return {"success": False, "message": "系統未設定"}
 
     try:
+        payload = {
+            "type": id_type,
+            "id": id_value,
+            "name": name,
+            "activated_by": {
+                "user_id": activated_by_id,
+                "display_name": activated_by_name
+            }
+        }
         response = requests.post(
             f"{jaba_api_url}/api/linebot/register",
-            json={"type": id_type, "id": id_value, "name": name},
+            json=payload,
             headers=get_jaba_headers(),
             timeout=5
         )
@@ -249,7 +272,15 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
         source_id, id_type = get_source_id(event)
         name = get_user_display_name(event) if id_type == "user" else ""
 
-        result = register_to_whitelist(id_type, source_id, name)
+        # 取得啟用者資訊（不論群組或個人，都記錄是誰啟用的）
+        activator_id = user_id
+        activator_name = get_user_display_name(event)
+
+        result = register_to_whitelist(
+            id_type, source_id, name,
+            activated_by_id=activator_id,
+            activated_by_name=activator_name
+        )
 
         if result.get("success"):
             if result.get("already_registered"):

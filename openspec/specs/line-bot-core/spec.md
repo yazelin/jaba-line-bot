@@ -51,3 +51,37 @@ TBD - created by archiving change add-basic-line-bot. Update Purpose after archi
 - **WHEN** 部署過程中
 - **THEN** Render 提示使用者輸入 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN
 
+### Requirement: 離開事件處理
+系統 SHALL 監聽 LINE 的離開事件，並自動將對應的群組或使用者從 jaba 白名單移除。
+
+#### Scenario: Bot 被移出群組
+- **WHEN** Bot 被踢出或移除出群組
+- **THEN** 系統呼叫 jaba API 將該群組 ID 從白名單移除
+
+#### Scenario: Bot 被移出聊天室
+- **WHEN** Bot 被踢出或移除出多人聊天室
+- **THEN** 系統呼叫 jaba API 將該聊天室 ID 從白名單移除
+
+#### Scenario: 使用者封鎖或取消追蹤 Bot
+- **WHEN** 使用者在 1對1 聊天中封鎖或取消追蹤 Bot
+- **THEN** 系統呼叫 jaba API 將該使用者 ID 從白名單移除
+
+#### Scenario: API 呼叫失敗
+- **WHEN** 呼叫 jaba unregister API 失敗
+- **THEN** 系統記錄錯誤訊息但不中斷服務
+
+### Requirement: 記錄啟用者資訊
+系統 SHALL 在白名單註冊時，記錄執行啟用動作的使用者資訊（user_id 和顯示名稱）。
+
+#### Scenario: 群組啟用時記錄啟用者
+- **WHEN** 使用者在群組中輸入啟用密碼
+- **THEN** 系統記錄該群組 ID 以及啟用者的 user_id 和顯示名稱
+
+#### Scenario: 個人啟用時記錄啟用者
+- **WHEN** 使用者在 1對1 聊天中輸入啟用密碼
+- **THEN** 系統記錄該使用者 ID 以及啟用者資訊（即自己）
+
+#### Scenario: 向下相容舊資料
+- **WHEN** 查詢白名單中沒有 `activated_by` 欄位的舊資料
+- **THEN** 系統正常運作，不因缺少欄位而錯誤
+
