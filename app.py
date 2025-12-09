@@ -291,16 +291,79 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
         if REGISTER_SECRET and text_stripped == REGISTER_SECRET:
             return True, user_text
 
-        # 其他訊息完全忽略（包括關鍵字、@mention 等）
+        # 檢查是否只有 @ mention（呼叫幫助）
+        text_lower = text_stripped.lower()
+        for keyword in TRIGGER_KEYWORDS:
+            # 支援 @呷爸、呷爸、@jaba 等格式
+            if text_lower in [keyword.lower(), f"@{keyword.lower()}"]:
+                return True, "help"  # 標記為幫助請求
+
+        # 其他訊息完全忽略
         return False, user_text
 
 
+def generate_help_message(event: MessageEvent) -> str:
+    """產生幫助訊息，包含目前狀態和可用指令"""
+    source_id, source_type = get_source_id(event)
+    lines = ["🍱 呷爸 - AI 午餐訂便當助手", ""]
+
+    # 檢查啟用狀態
+    whitelist_check = check_whitelist(source_id)
+    is_registered = whitelist_check.get("registered", False)
+
+    if source_type == "group":
+        # 群組模式
+        if is_registered:
+            lines.append("✅ 狀態：已啟用")
+
+            # 檢查是否在點餐中
+            is_ordering = check_group_session(source_id)
+            if is_ordering:
+                lines.append("🛒 點餐中")
+                lines.append("")
+                lines.append("【可用指令】")
+                lines.append("• 直接說出餐點即可點餐")
+                lines.append("• 「+1」或「我也要」跟單")
+                lines.append("• 「收單」結束點餐")
+                lines.append("• 「菜單」查看今日菜單")
+                lines.append("• 「目前訂單」查看訂單狀況")
+            else:
+                lines.append("💤 未在點餐中")
+                lines.append("")
+                lines.append("【可用指令】")
+                lines.append("• 「開單」開始群組點餐")
+                lines.append("• 「菜單」查看今日菜單")
+        else:
+            lines.append("⚠️ 狀態：未啟用")
+            lines.append("")
+            lines.append("請輸入啟用密碼以啟用點餐功能")
+    else:
+        # 個人模式
+        if is_registered:
+            lines.append("✅ 狀態：已啟用")
+            lines.append("")
+            lines.append("【可用指令】")
+            lines.append("• 直接說出餐點即可點餐")
+            lines.append("• 「今天吃什麼」查看推薦")
+            lines.append("• 「我的訂單」查看訂單")
+        else:
+            lines.append("⚠️ 狀態：未啟用")
+            lines.append("")
+            lines.append("請輸入啟用密碼以啟用點餐功能")
+
+    return "\n".join(lines)
+
+
 def handle_special_command(event: MessageEvent, command: str) -> str | None:
-    """處理特殊指令（註冊密碼、ID查詢等），回傳回應訊息或 None"""
+    """處理特殊指令（註冊密碼、ID查詢、幫助等），回傳回應訊息或 None"""
     cmd = command.strip()
     cmd_lower = cmd.lower()
     user_id = event.source.user_id
     source_type = event.source.type
+
+    # === 幫助請求（只有 @ mention 沒有其他訊息）===
+    if cmd == "help":
+        return generate_help_message(event)
 
     # 移除觸發關鍵字前綴（群組中可能帶有關鍵字）
     cmd_without_keyword = cmd
