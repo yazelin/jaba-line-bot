@@ -75,12 +75,29 @@ def call_jaba_api(username: str, message: str) -> str:
         return "系統連線錯誤，請稍後再試"
 
 
-def get_user_display_name(user_id: str) -> str:
-    """取得使用者的 LINE 顯示名稱"""
+def get_user_display_name(event) -> str:
+    """取得使用者的 LINE 顯示名稱（支援群組和聊天室）"""
+    user_id = event.source.user_id
+
     try:
         with ApiClient(configuration) as api_client:
             messaging_api = MessagingApi(api_client)
-            profile = messaging_api.get_profile(user_id)
+
+            # 根據來源類型使用不同 API
+            if event.source.type == "group":
+                # 群組：用 group_id 取得成員資料
+                profile = messaging_api.get_group_member_profile(
+                    event.source.group_id, user_id
+                )
+            elif event.source.type == "room":
+                # 多人聊天室
+                profile = messaging_api.get_room_member_profile(
+                    event.source.room_id, user_id
+                )
+            else:
+                # 1對1 聊天
+                profile = messaging_api.get_profile(user_id)
+
             return profile.display_name
     except Exception:
         return user_id  # 無法取得時回傳 user_id
@@ -109,9 +126,8 @@ def handle_text_message(event: MessageEvent):
     if not user_text or not user_text.strip():
         return
 
-    # 取得使用者名稱
-    user_id = event.source.user_id
-    username = get_user_display_name(user_id)
+    # 取得使用者名稱（支援群組）
+    username = get_user_display_name(event)
 
     # 呼叫 jaba API 取得回應
     reply_text = call_jaba_api(username, user_text)
