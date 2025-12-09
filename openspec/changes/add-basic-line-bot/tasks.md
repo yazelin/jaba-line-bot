@@ -18,7 +18,7 @@
 
 ## 4. Git 與部署
 - [x] 4.1 初始化 Git repository
-- [ ] 4.2 建立 GitHub repository
+- [x] 4.2 建立 GitHub repository
 - [ ] 4.3 部署到 Render
 - [ ] 4.4 在 LINE Developers Console 設定 Webhook URL
 - [ ] 4.5 測試 Bot 回應
