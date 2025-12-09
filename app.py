@@ -365,18 +365,19 @@ def generate_help_message(event: MessageEvent) -> str:
             lines.append("")
             lines.append("請輸入啟用密碼以啟用點餐功能")
     else:
-        # 個人模式
+        # 個人模式（僅提供偏好設定功能）
         if is_registered:
             lines.append("✅ 狀態：已啟用")
             lines.append("")
-            lines.append("【可用指令】")
-            lines.append("• 直接說出餐點即可點餐")
-            lines.append("• 「今天吃什麼」查看推薦")
-            lines.append("• 「我的訂單」查看訂單")
+            lines.append("【偏好設定】")
+            lines.append("• 告訴我你的稱呼（如「叫我小明」）")
+            lines.append("• 告訴我飲食偏好（如「我不吃辣」）")
+            lines.append("")
+            lines.append("💡 要點餐請加入 LINE 群組，說「開單」開始！")
         else:
             lines.append("⚠️ 狀態：未啟用")
             lines.append("")
-            lines.append("請輸入啟用密碼以啟用點餐功能")
+            lines.append("請輸入啟用密碼以啟用偏好設定功能")
 
     return "\n".join(lines)
 
@@ -423,12 +424,12 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
                 if id_type == "group":
                     return "✅ 此群組已啟用，可以直接使用點餐功能！\n\n說「開單」開始群組點餐"
                 else:
-                    return "✅ 已啟用，可以直接使用點餐功能！"
+                    return "✅ 已啟用！你可以在這裡設定個人偏好。\n\n要點餐請加入群組喔！"
             else:
                 if id_type == "group":
                     return "🎉 群組啟用成功！\n\n說「開單」開始群組點餐\n說「收單」或「結單」結束並顯示訂單摘要\n說「菜單」查看今日菜單"
                 else:
-                    return "🎉 啟用成功！\n\n現在你可以使用點餐功能了。\n\n試試說「今天吃什麼」"
+                    return "🎉 啟用成功！\n\n你可以在這裡設定個人偏好：\n• 告訴我你的稱呼（如「叫我小明」）\n• 告訴我飲食偏好（如「我不吃辣」）\n\n💡 要點餐請加入 LINE 群組！"
         else:
             return f"❌ 啟用失敗：{result.get('message', '未知錯誤')}"
 
