@@ -159,13 +159,19 @@ def unregister_from_whitelist(id_value: str) -> None:
         print(f"移除白名單錯誤: {e}")
 
 
-def call_jaba_api(username: str, message: str, group_id: str | None = None) -> str:
+def call_jaba_api(
+    username: str,
+    message: str,
+    group_id: str | None = None,
+    line_user_id: str | None = None
+) -> str:
     """呼叫 jaba API 取得回應
 
     Args:
-        username: 使用者名稱
+        username: 使用者顯示名稱 (display_name)
         message: 訊息內容
         group_id: 群組 ID（群組點餐時傳入）
+        line_user_id: LINE User ID（群組點餐時傳入，用於識別使用者）
     """
     if not jaba_api_url:
         return message  # Echo 模式
@@ -178,6 +184,10 @@ def call_jaba_api(username: str, message: str, group_id: str | None = None) -> s
         }
         if group_id:
             payload["group_id"] = group_id
+            # 群組點餐時傳入 LINE User ID 和 display_name
+            if line_user_id:
+                payload["line_user_id"] = line_user_id
+                payload["display_name"] = username
 
         response = requests.post(
             f"{jaba_api_url}/api/chat",
@@ -462,6 +472,7 @@ def handle_text_message(event: MessageEvent):
 
     # 取得使用者名稱（支援群組）
     username = get_user_display_name(event)
+    line_user_id = event.source.user_id  # LINE User ID
 
     # 取得群組 ID（群組/聊天室時傳入）
     group_id = None
@@ -469,7 +480,7 @@ def handle_text_message(event: MessageEvent):
         group_id = source_id
 
     # 呼叫 jaba API 取得回應
-    reply_text = call_jaba_api(username, cleaned_message, group_id)
+    reply_text = call_jaba_api(username, cleaned_message, group_id, line_user_id)
 
     # 回覆訊息（空訊息不回覆，用於群組點餐時過濾非訂餐訊息）
     if reply_text and reply_text.strip():
