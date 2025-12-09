@@ -267,8 +267,15 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
     user_id = event.source.user_id
     source_type = event.source.type
 
+    # 移除觸發關鍵字前綴（群組中可能帶有關鍵字）
+    cmd_without_keyword = cmd
+    for keyword in TRIGGER_KEYWORDS:
+        if cmd_lower.startswith(keyword.lower()):
+            cmd_without_keyword = cmd[len(keyword):].strip()
+            break
+
     # === 啟用密碼 ===
-    if REGISTER_SECRET and cmd == REGISTER_SECRET:
+    if REGISTER_SECRET and cmd_without_keyword == REGISTER_SECRET:
         source_id, id_type = get_source_id(event)
         name = get_user_display_name(event) if id_type == "user" else ""
 
@@ -297,7 +304,8 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
             return f"❌ 啟用失敗：{result.get('message', '未知錯誤')}"
 
     # === ID 查詢指令 ===
-    if cmd_lower in ["id", "群組id", "groupid", "userid"]:
+    cmd_without_keyword_lower = cmd_without_keyword.lower()
+    if cmd_without_keyword_lower in ["id", "群組id", "groupid", "userid"]:
         if source_type == "group":
             group_id = event.source.group_id
             return f"📋 ID 資訊\n\n群組 ID:\n{group_id}\n\n你的用戶 ID:\n{user_id}"
