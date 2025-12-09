@@ -120,6 +120,9 @@ def callback():
 # 觸發關鍵字（訊息開頭需包含這些詞才會回應）
 TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
 
+# 管理指令（用於取得 ID 等）
+ADMIN_COMMANDS = ["id", "群組id", "群組ID", "userid", "groupid"]
+
 
 def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
     """判斷是否應該回應此訊息
@@ -160,6 +163,27 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
     return False, user_text
 
 
+def handle_admin_command(event: MessageEvent, command: str) -> str | None:
+    """處理管理指令，回傳回應訊息或 None（非管理指令）"""
+    cmd_lower = command.lower().strip()
+
+    # 檢查是否為 ID 查詢指令
+    if cmd_lower in ["id", "群組id", "groupid", "userid"]:
+        user_id = event.source.user_id
+        source_type = event.source.type
+
+        if source_type == "group":
+            group_id = event.source.group_id
+            return f"📋 ID 資訊\n\n群組 ID:\n{group_id}\n\n你的用戶 ID:\n{user_id}"
+        elif source_type == "room":
+            room_id = event.source.room_id
+            return f"📋 ID 資訊\n\n聊天室 ID:\n{room_id}\n\n你的用戶 ID:\n{user_id}"
+        else:
+            return f"📋 ID 資訊\n\n你的用戶 ID:\n{user_id}"
+
+    return None
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event: MessageEvent):
     """處理文字訊息 - 轉發到 jaba 系統"""
@@ -172,6 +196,19 @@ def handle_text_message(event: MessageEvent):
     # 檢查是否應該回應（群組中需要 @mention 或關鍵字觸發）
     should_reply, cleaned_message = should_respond(event, user_text)
     if not should_reply:
+        return
+
+    # 檢查是否為管理指令
+    admin_response = handle_admin_command(event, cleaned_message)
+    if admin_response:
+        with ApiClient(configuration) as api_client:
+            messaging_api = MessagingApi(api_client)
+            messaging_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=admin_response)]
+                )
+            )
         return
 
     # 取得使用者名稱（支援群組）
