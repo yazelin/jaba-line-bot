@@ -43,8 +43,8 @@ handler = WebhookHandler(channel_secret)
 # 觸發關鍵字（訊息開頭需包含這些詞才會回應）
 TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
 
-# 註冊相關指令
-REGISTER_COMMANDS = ["註冊", "register"]
+# 註冊密碼（只有知道密碼的人才能註冊）
+REGISTER_SECRET = os.environ.get("REGISTER_SECRET", "36274806")
 
 
 def get_jaba_headers() -> dict:
@@ -218,13 +218,14 @@ def should_respond(event: MessageEvent, user_text: str) -> tuple[bool, str]:
 
 
 def handle_special_command(event: MessageEvent, command: str) -> str | None:
-    """處理特殊指令（註冊、ID查詢等），回傳回應訊息或 None"""
-    cmd_lower = command.lower().strip()
+    """處理特殊指令（註冊密碼、ID查詢等），回傳回應訊息或 None"""
+    cmd = command.strip()
+    cmd_lower = cmd.lower()
     user_id = event.source.user_id
     source_type = event.source.type
 
-    # === 註冊指令 ===
-    if cmd_lower in REGISTER_COMMANDS:
+    # === 註冊密碼 ===
+    if cmd == REGISTER_SECRET:
         source_id, id_type = get_source_id(event)
         name = get_user_display_name(event) if id_type == "user" else ""
 
@@ -233,16 +234,16 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
         if result.get("success"):
             if result.get("already_registered"):
                 if id_type == "group":
-                    return "✅ 此群組已經註冊過了，可以直接使用點餐功能！"
+                    return "✅ 此群組已啟用，可以直接使用點餐功能！"
                 else:
-                    return "✅ 你已經註冊過了，可以直接使用點餐功能！"
+                    return "✅ 已啟用，可以直接使用點餐功能！"
             else:
                 if id_type == "group":
-                    return "🎉 群組註冊成功！\n\n現在群組成員可以使用點餐功能了。\n\n試試說「呷爸 今天吃什麼」"
+                    return "🎉 群組啟用成功！\n\n現在群組成員可以使用點餐功能了。\n\n試試說「呷爸 今天吃什麼」"
                 else:
-                    return "🎉 註冊成功！\n\n現在你可以使用點餐功能了。\n\n試試說「今天吃什麼」"
+                    return "🎉 啟用成功！\n\n現在你可以使用點餐功能了。\n\n試試說「今天吃什麼」"
         else:
-            return f"❌ 註冊失敗：{result.get('message', '未知錯誤')}"
+            return f"❌ 啟用失敗：{result.get('message', '未知錯誤')}"
 
     # === ID 查詢指令 ===
     if cmd_lower in ["id", "群組id", "groupid", "userid"]:
@@ -295,11 +296,11 @@ def handle_text_message(event: MessageEvent):
     whitelist_check = check_whitelist(source_id)
 
     if not whitelist_check.get("registered"):
-        # 未註冊，提示註冊
+        # 未啟用，不提示具體方法（密碼制）
         if event.source.type == "group":
-            reply_message(event, "⚠️ 此群組尚未註冊，請先說「呷爸 註冊」來啟用點餐功能。")
+            reply_message(event, "⚠️ 此群組尚未啟用點餐功能。")
         else:
-            reply_message(event, "⚠️ 你尚未註冊，請先說「註冊」來啟用點餐功能。")
+            reply_message(event, "⚠️ 你尚未啟用點餐功能。")
         return
 
     # 取得使用者名稱（支援群組）
