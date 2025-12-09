@@ -43,8 +43,8 @@ handler = WebhookHandler(channel_secret)
 # 觸發關鍵字（訊息開頭需包含這些詞才會回應）
 TRIGGER_KEYWORDS = ["呷爸", "點餐", "jaba"]
 
-# 註冊密碼（只有知道密碼的人才能註冊）
-REGISTER_SECRET = os.environ.get("REGISTER_SECRET", "36274806")
+# 啟用密碼（必須透過環境變數設定）
+REGISTER_SECRET = os.environ.get("REGISTER_SECRET")
 
 
 def get_jaba_headers() -> dict:
@@ -224,8 +224,8 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
     user_id = event.source.user_id
     source_type = event.source.type
 
-    # === 註冊密碼 ===
-    if cmd == REGISTER_SECRET:
+    # === 啟用密碼 ===
+    if REGISTER_SECRET and cmd == REGISTER_SECRET:
         source_id, id_type = get_source_id(event)
         name = get_user_display_name(event) if id_type == "user" else ""
 
