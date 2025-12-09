@@ -237,6 +237,23 @@ def get_user_display_name(event) -> str:
         return user_id  # 無法取得時回傳 user_id
 
 
+def get_group_name(event) -> str:
+    """取得群組名稱"""
+    if event.source.type != "group":
+        return ""
+
+    group_id = event.source.group_id
+
+    try:
+        with ApiClient(configuration) as api_client:
+            messaging_api = MessagingApi(api_client)
+            summary = messaging_api.get_group_summary(group_id)
+            return summary.group_name
+    except Exception as e:
+        print(f"取得群組名稱失敗: {e}")
+        return ""  # 無法取得時回傳空字串
+
+
 def get_source_id(event) -> tuple[str, str]:
     """取得來源 ID 和類型
 
@@ -385,7 +402,11 @@ def handle_special_command(event: MessageEvent, command: str) -> str | None:
     # === 啟用密碼 ===
     if REGISTER_SECRET and cmd_without_keyword == REGISTER_SECRET:
         source_id, id_type = get_source_id(event)
-        name = get_user_display_name(event) if id_type == "user" else ""
+        # 取得名稱：個人用顯示名稱，群組用群組名稱
+        if id_type == "user":
+            name = get_user_display_name(event)
+        else:
+            name = get_group_name(event)
 
         # 取得啟用者資訊（不論群組或個人，都記錄是誰啟用的）
         activator_id = user_id
