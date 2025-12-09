@@ -59,7 +59,7 @@ def call_jaba_api(username: str, message: str) -> str:
                 "is_manager": False
             },
             headers=headers,
-            timeout=10
+            timeout=25  # 增加 timeout 以應對 AI 處理時間
         )
 
         if response.status_code == 200:
